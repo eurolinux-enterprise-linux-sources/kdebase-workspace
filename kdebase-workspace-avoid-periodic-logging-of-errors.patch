@@ -1,0 +1,71 @@
+diff --git a/krunner/screensaver/xautolock.cpp b/krunner/screensaver/xautolock.cpp
+index 7124215..1e7a8c3 100644
+--- a/krunner/screensaver/xautolock.cpp
++++ b/krunner/screensaver/xautolock.cpp
+@@ -229,27 +229,32 @@ void XAutoLock::timerEvent(QTimerEvent *ev)
+         activate = true;
+
+ #ifdef HAVE_DPMS
+-    BOOL on;
+-    CARD16 state;
+-    CARD16 timeout1, timeout2, timeout3;
+-    DPMSInfo( QX11Info::display(), &state, &on );
+-    DPMSGetTimeouts( QX11Info::display(), &timeout1, &timeout2, &timeout3 );
+-
+-    // kDebug() << "DPMSInfo " << state << on;
+-    // If DPMS is active, it makes XScreenSaverQueryInfo() report idle time
+-    // that is always smaller than DPMS timeout (X bug I guess). So if DPMS
+-    // saving is active, simply always activate our saving too, otherwise
+-    // this could prevent locking from working.
+-    // X.Org 7.4: With this version activating DPMS resets the screensaver idle timer,
+-    // so keep this. It probably makes sense to always do this anyway.
+-    if(state == DPMSModeStandby || state == DPMSModeSuspend || state == DPMSModeOff)
+-        activate = true;
+-    // If we are DPMS-dependent and either DPMS is turned off completely or all
+-    // three DPMS modes are turned off, don't activate (apps use this to turn off
+-    // screensavers).
+-    if(mDPMS && (!on || (timeout1 == 0 && timeout2 == 0 && timeout3 == 0 ))) {
+-        activate = false;
+-        resetTrigger();
++    // Calling DPMSInfo() on a display which does not support DPMS extension logs an error
++    // in ~/.xsesson-errors. Avoid periodic logging of this error by checking if display
++    // has DPMS support enabled
++    if( mDPMS ) {
++        BOOL on;
++        CARD16 state;
++        CARD16 timeout1, timeout2, timeout3;
++        DPMSInfo( QX11Info::display(), &state, &on );
++        DPMSGetTimeouts( QX11Info::display(), &timeout1, &timeout2, &timeout3 );
++
++        // kDebug() << "DPMSInfo " << state << on;
++        // If DPMS is active, it makes XScreenSaverQueryInfo() report idle time
++        // that is always smaller than DPMS timeout (X bug I guess). So if DPMS
++        // saving is active, simply always activate our saving too, otherwise
++        // this could prevent locking from working.
++        // X.Org 7.4: With this version activating DPMS resets the screensaver idle timer,
++        // so keep this. It probably makes sense to always do this anyway.
++        if(state == DPMSModeStandby || state == DPMSModeSuspend || state == DPMSModeOff)
++            activate = true;
++        // If we are DPMS-dependent and either DPMS is turned off completely or all
++        // three DPMS modes are turned off, don't activate (apps use this to turn off
++        // screensavers).
++        if(!on || (timeout1 == 0 && timeout2 == 0 && timeout3 == 0 )) {
++            activate = false;
++            resetTrigger();
++        }
+     }
+ #endif
+
+diff --git a/krunner/lock/lockprocess.cc b/krunner/lock/lockprocess.cc
+index e64b848..856b2be 100644
+--- a/krunner/lock/lockprocess.cc
++++ b/krunner/lock/lockprocess.cc
+@@ -190,7 +190,7 @@ LockProcess::LockProcess(bool child, bool useBlankOnly)
+         BOOL on;
+         CARD16 state;
+         DPMSInfo(QX11Info::display(), &state, &on);
+-        if (on)
++        if (DPMSCapable(QX11Info::display()) && on)
+         {
+             connect(&mCheckDPMS, SIGNAL(timeout()), SLOT(checkDPMSActive()));
+             // we can save CPU if we stop it as quickly as possible

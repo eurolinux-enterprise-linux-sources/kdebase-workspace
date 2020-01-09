@@ -3,7 +3,7 @@
 Summary: K Desktop Environment - Workspace
 Name: kdebase-workspace
 Version: 4.3.4
-Release: 30%{?dist}
+Release: 32%{?dist}
 URL: http://www.kde.org/
 Source0: ftp://ftp.kde.org/pub/kde/stable/%{version}/src/kdebase-workspace-%{version}.tar.bz2
 License: GPLv2
@@ -113,6 +113,9 @@ Patch203: kdebase-workspace-4.3.4-powerdevil.patch
 
 # bz#1027703, KDE Task manager widget not removing all closed windows
 Patch204: kdebase-workspace-4.3.5-fixed-closing-of-windows-in-task-applet.patch
+
+# bz#1258807, krunner screensaver fill up logs when display does not have DPMS enabled
+Patch205: kdebase-workspace-avoid-periodic-logging-of-errors.patch
 
 # trunk
 
@@ -301,6 +304,7 @@ Requires: akonadi
 %patch202 -p1 -b .bz#749460
 %patch203 -p1 -b .bz#1143971
 %patch204 -p1 -b .fixed-closing-of-windows-in-task-applet
+%patch205 -p1 -b .avoid-periodic-logging-of-errors
 
 # security fixes
 # CVE-2010-0436 kdm privilege escalation flaw
@@ -314,6 +318,7 @@ pushd %{_target_platform}
   -DKDE4_KDM_PAM_SERVICE=kdm \
   -DKDE4_KCHECKPASS_PAM_SERVICE=kcheckpass \
   -DKDE4_KSCREENSAVER_PAM_SERVICE=kscreensaver \
+  -DBoost_NO_BOOST_CMAKE=ON \
   ..
 popd
 
@@ -588,6 +593,14 @@ fi
 
 
 %changelog
+* Mon Nov 02 2015 Jan Grulich <jgrulich@redhat.com> - 4.3.4-32
+- Avoid periodic logging of errors in .xsession-errors
+  Resolves: bz#1263559
+
+* Tue Sep 15 2015 Jan Grulich <jgrulich@redhat.com> - 4.3.4-31
+- Avoid periodic logging of errors in .xsession-errors
+  Resolves: bz#1263559
+
 * Tue Jun 16 2015 Jan Grulich <jgrulich@redhat.com> - 4.3.4-30
 - Make sure all windows are properly closed and removed from the task manager applet
   Resolves: bz#1027703
