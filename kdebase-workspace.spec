@@ -3,7 +3,7 @@
 Summary: K Desktop Environment - Workspace
 Name: kdebase-workspace
 Version: 4.3.4
-Release: 32%{?dist}
+Release: 33%{?dist}
 URL: http://www.kde.org/
 Source0: ftp://ftp.kde.org/pub/kde/stable/%{version}/src/kdebase-workspace-%{version}.tar.bz2
 License: GPLv2
@@ -116,6 +116,9 @@ Patch204: kdebase-workspace-4.3.5-fixed-closing-of-windows-in-task-applet.patch
 
 # bz#1258807, krunner screensaver fill up logs when display does not have DPMS enabled
 Patch205: kdebase-workspace-avoid-periodic-logging-of-errors.patch
+
+# bz#1320510 - plasma-desktop crashes in TaskManager::TaskItem::task
+Patch206: kdebase-workspace-fix-crash-in-task-manager.patch
 
 # trunk
 
@@ -305,6 +308,7 @@ Requires: akonadi
 %patch203 -p1 -b .bz#1143971
 %patch204 -p1 -b .fixed-closing-of-windows-in-task-applet
 %patch205 -p1 -b .avoid-periodic-logging-of-errors
+%patch206 -p1 -b .fix-crash-in-task-manager
 
 # security fixes
 # CVE-2010-0436 kdm privilege escalation flaw
@@ -593,6 +597,10 @@ fi
 
 
 %changelog
+* Wed Mar 23 2016 Jan Grulich <jgrulich@redhat.com> - 4.3.4-33
+- Do not crash in TaskManager::TaskItem::task
+  Resolves: bz#1320510
+
 * Mon Nov 02 2015 Jan Grulich <jgrulich@redhat.com> - 4.3.4-32
 - Avoid periodic logging of errors in .xsession-errors
   Resolves: bz#1263559
