@@ -3,7 +3,7 @@
 Summary: K Desktop Environment - Workspace
 Name: kdebase-workspace
 Version: 4.3.4
-Release: 33%{?dist}
+Release: 35%{?dist}
 URL: http://www.kde.org/
 Source0: ftp://ftp.kde.org/pub/kde/stable/%{version}/src/kdebase-workspace-%{version}.tar.bz2
 License: GPLv2
@@ -115,10 +115,17 @@ Patch203: kdebase-workspace-4.3.4-powerdevil.patch
 Patch204: kdebase-workspace-4.3.5-fixed-closing-of-windows-in-task-applet.patch
 
 # bz#1258807, krunner screensaver fill up logs when display does not have DPMS enabled
+
 Patch205: kdebase-workspace-avoid-periodic-logging-of-errors.patch
 
-# bz#1320510 - plasma-desktop crashes in TaskManager::TaskItem::task
-Patch206: kdebase-workspace-fix-crash-in-task-manager.patch
+# bz#1077905 - KDE Panel does not automatically resize with screen resolution when changing to display with higher resolution
+Patch206: kdebase-workspace-be-sure-panel-is-resized-when-needed.patch
+
+# bz#1294065 - plasma-desktop crashes in TaskManager::TaskItem::task
+Patch207: kdebase-workspace-fix-crash-in-task-manager.patch
+
+# bz#1192941 - After creating a "log to a file" sensor in ksysguard, there is no option to start logging
+Patch208: kdebase-workspace-ksysguard-fix-logging.patch
 
 # trunk
 
@@ -308,7 +315,9 @@ Requires: akonadi
 %patch203 -p1 -b .bz#1143971
 %patch204 -p1 -b .fixed-closing-of-windows-in-task-applet
 %patch205 -p1 -b .avoid-periodic-logging-of-errors
-%patch206 -p1 -b .fix-crash-in-task-manager
+%patch206 -p1 -b .be-sure-panel-is-resized-when-needed
+%patch207 -p1 -b .fix-crash-in-task-manager
+%patch208 -p1 -b .ksysguard-fix-logging
 
 # security fixes
 # CVE-2010-0436 kdm privilege escalation flaw
@@ -597,17 +606,25 @@ fi
 
 
 %changelog
-* Wed Mar 23 2016 Jan Grulich <jgrulich@redhat.com> - 4.3.4-33
+* Wed Feb 10 2016 Jan Grulich <jgrulich@redhat.com> - 4.3.4.35
+- Ksysguard - fix logging into file
+  Resolves: bz#1192941
+
+* Wed Jan 27 2016 Jan Grulich <jgrulich@redhat.com> - 4.3.4-34
 - Do not crash in TaskManager::TaskItem::task
-  Resolves: bz#1320510
+  Resolves: bz#1294065
+
+* Fri Nov 27 2015 Jan Grulich <jgrulich@redhat.com> - 4.3.4-33
+- Automatically resize panel when changing to display with higher resolution
+  Resolves: bz#1077905
 
 * Mon Nov 02 2015 Jan Grulich <jgrulich@redhat.com> - 4.3.4-32
 - Avoid periodic logging of errors in .xsession-errors
-  Resolves: bz#1263559
+  Resolves: bz#1258807
 
 * Tue Sep 15 2015 Jan Grulich <jgrulich@redhat.com> - 4.3.4-31
 - Avoid periodic logging of errors in .xsession-errors
-  Resolves: bz#1263559
+  Resolves: bz#1258807
 
 * Tue Jun 16 2015 Jan Grulich <jgrulich@redhat.com> - 4.3.4-30
 - Make sure all windows are properly closed and removed from the task manager applet

@@ -1,0 +1,40 @@
+diff --git a/ksysguard/gui/SensorDisplayLib/SensorLogger.cc b/ksysguard/gui/SensorDisplayLib/SensorLogger.cc
+index 5138ba1..08a9208 100644
+--- a/ksysguard/gui/SensorDisplayLib/SensorLogger.cc
++++ b/ksysguard/gui/SensorDisplayLib/SensorLogger.cc
+@@ -347,6 +347,11 @@ void LogSensor::timerTick( )
+   KSGRD::SensorMgr->sendRequest( mHostName, mSensorName, (KSGRD::SensorClient*) this, 42 );
+ }
+ 
++void LogSensor::timerEvent ( QTimerEvent * event)
++{
++  timerTick();
++}
++
+ void LogSensor::answerReceived( int id, const QList<QByteArray>& answer ) //virtual
+ {
+   QFile mLogFile( mFileName );
+@@ -412,9 +417,6 @@ SensorLogger::SensorLogger( QWidget *parent, const QString& title, SharedSetting
+   layout->addWidget(mView);
+   setLayout(layout);
+ 
+-  mView->setContextMenuPolicy( Qt::CustomContextMenu );
+-  connect(mView, SIGNAL(customContextMenuRequested(const QPoint&)), SLOT(showContextMenu(const QPoint &)));
+-
+   mView->header()->setStretchLastSection( true );
+   mView->setRootIsDecorated( false );
+   mView->setItemsExpandable( false );
+diff --git a/ksysguard/gui/SensorDisplayLib/SensorLogger.h b/ksysguard/gui/SensorDisplayLib/SensorLogger.h
+index 207e3cb..626cf33 100644
+--- a/ksysguard/gui/SensorDisplayLib/SensorLogger.h
++++ b/ksysguard/gui/SensorDisplayLib/SensorLogger.h
+@@ -79,7 +79,8 @@ class LogSensor : public QObject, public KSGRD::SensorClient
+ 
+   protected:
+     virtual void timerTick();
+-
++    virtual void timerEvent ( QTimerEvent * event );
++    
+   private:
+     QString mSensorName;
+     QString mHostName;
