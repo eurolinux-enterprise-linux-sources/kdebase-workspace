@@ -1,0 +1,34 @@
+commit a3997ced2ce20ecc7163e9fab65f3f3cfd0a3c3f
+Author: Daniel Vratil <dvratil@redhat.com>
+Date:   Wed Jan 22 16:46:54 2014 +0100
+
+    Make sure that not maximized clients are offscreen on xrandr events
+        
+    Added a small check in Client::checkWorkspacePosition which will assure
+    us that no window ("client") is left in a offscreen position. this is
+    more a workaround than a proper fix but is the only thing we can do that
+    will be backportable to the 4.7 branch.
+
+    Backported from d74a60 and slightly improved so that the code attempts to
+    move the entire window to the new screen, not just it's quarter.
+
+diff --git a/kwin/geometry.cpp b/kwin/geometry.cpp
+index b9b873a..47b0ed2 100644
+--- a/kwin/geometry.cpp
++++ b/kwin/geometry.cpp
+@@ -1230,6 +1230,15 @@ void Client::checkWorkspacePosition()
+                 newGeom.x() + newGeom.width() - 1 ));
+             }
+ 
++        if (newGeom.x() > screenArea.right()) {
++            int screenWidth = screenArea.width();
++            newGeom.moveLeft(qMax(0, screenWidth - newGeom.width()));
++        }
++        if (newGeom.y() > screenArea.bottom()) {
++            int screenHeight = screenArea.height();
++            newGeom.moveBottom(qMax(0, screenHeight - newGeom.height()));
++        }
++
+         // Obey size hints. TODO: We really should make sure it stays in the right place
+         newGeom.setSize( adjustedSize( newGeom.size() ));
+ 

@@ -1,0 +1,12 @@
+diff -up kdebase-workspace-4.3.4/ksysguard/gui/SensorDisplayLib/FancyPlotter.cc.me kdebase-workspace-4.3.4/ksysguard/gui/SensorDisplayLib/FancyPlotter.cc
+--- kdebase-workspace-4.3.4/ksysguard/gui/SensorDisplayLib/FancyPlotter.cc.me	2011-07-15 14:53:41.703102218 +0200
++++ kdebase-workspace-4.3.4/ksysguard/gui/SensorDisplayLib/FancyPlotter.cc	2011-07-15 15:26:03.340117188 +0200
+@@ -256,7 +256,7 @@ void FancyPlotter::applySettings() {
+ 
+     SensorModelEntry::List list = mSettingsDialog->sensors();
+ 
+-    for ( int i = 0; i < sensors().count(); ++i ) {
++    for ( int i = 0; i < list.count(); i++ ) {
+         mPlotter->setBeamColor( i, list[ i ].color() );
+         static_cast<FancyPlotterLabel *>((static_cast<QWidgetItem *>(mLabelLayout->itemAt(i)))->widget())->changeLabel(mPlotter->beamColor(i), mIndicatorSymbol);
+     }

@@ -1,0 +1,14 @@
+--- kdebase-workspace-4.3.4/kdm/backend/client.c.orig	2009-05-27 21:53:39.000000000 +0200
++++ kdebase-workspace-4.3.4/kdm/backend/client.c	2010-11-05 11:33:05.000000000 +0100
+@@ -1712,7 +1712,10 @@ startClient( volatile int *pid )
+ 			gSet( &mstrtalk );
+ 			gSendInt( D_ReLogin );
+ 			gSendStr( curuser );
+-			gSendStr( curpass );
++			if (curpass)
++				gSendStr( curpass );
++			else
++				gSendStr( "" );
+ 			gSendStr( newdmrc );
+ 		}
+ 		if (curpass)

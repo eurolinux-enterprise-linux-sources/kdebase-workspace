@@ -1,0 +1,10 @@
+diff -up kdebase-workspace-4.3.4/plasma/shells/desktop/plasma-desktop.desktop.than kdebase-workspace-4.3.4/plasma/shells/desktop/plasma-desktop.desktop
+--- kdebase-workspace-4.3.4/plasma/shells/desktop/plasma-desktop.desktop.than	2014-03-11 14:28:23.024187118 +0100
++++ kdebase-workspace-4.3.4/plasma/shells/desktop/plasma-desktop.desktop	2014-03-11 14:28:53.455717850 +0100
+@@ -1,5 +1,5 @@
+ [Desktop Entry]
+-Exec=plasma-desktop
++Exec=plasma-desktop --graphicssystem native
+ X-DBUS-StartupType=wait
+ Name=Plasma Desktop Workspace
+ Name[ar]=بلازما لسطح المكتب

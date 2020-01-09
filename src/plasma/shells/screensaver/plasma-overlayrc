@@ -1,0 +1,10 @@
+[KDE Action Restrictions][$i]
+PlasmaAllowConfigureWhenLocked=false
+
+[Constraints]
+FileDialog=false
+LaunchApp=false
+
+[General]
+ExcludeCategories=Windows and Tasks,Application Launchers
+

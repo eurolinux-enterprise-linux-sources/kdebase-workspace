@@ -1,0 +1,107 @@
+# Uncomment to have the test effects built as well
+#add_subdirectory( _test )
+
+# Adds effect plugin with given name. Sources are given after the name
+macro( KWIN4_ADD_EFFECT name )
+    kde4_add_plugin( kwin4_effect_${name} ${ARGN} )
+    target_link_libraries( kwin4_effect_${name} kwineffects ${KDE4_KDEUI_LIBS} kephal )
+    install( TARGETS kwin4_effect_${name} DESTINATION ${PLUGIN_INSTALL_DIR} )
+endmacro( KWIN4_ADD_EFFECT )
+
+macro( KWIN4_ADD_EFFECT_CONFIG name )
+    set( kwin4_effect_ui ) # Initially empty
+    set( kwin4_effect_src ) # Initially empty
+
+    foreach( file ${ARGN} )
+        if( file MATCHES \\.ui )
+            set( kwin4_effect_ui ${kwin4_effect_ui} ${file} )
+        else( file MATCHES \\.ui )
+            set( kwin4_effect_src ${kwin4_effect_src} ${file} )
+        endif( file MATCHES \\.ui )
+    endforeach( file )
+
+    kde4_add_ui_files( kwin4_effect_src ${kwin4_effect_ui} )
+    kde4_add_plugin( kcm_kwin4_effect_${name} ${kwin4_effect_src} )
+    target_link_libraries( kcm_kwin4_effect_${name} kwineffects ${KDE4_KIO_LIBS} ${KDE4_KDEUI_LIBS} kephal )
+    install( TARGETS kcm_kwin4_effect_${name} DESTINATION ${PLUGIN_INSTALL_DIR} )
+endmacro( KWIN4_ADD_EFFECT_CONFIG )
+
+macro( KWIN4_EFFECT_LINK_XRENDER name )
+    if( KWIN_HAVE_XRENDER_COMPOSITING )
+        target_link_libraries( kwin4_effect_${name} ${X11_Xrender_LIB} ${X11_LIBRARIES} kephal )
+    endif( KWIN_HAVE_XRENDER_COMPOSITING )
+endmacro( KWIN4_EFFECT_LINK_XRENDER )
+
+# Make sure we can see our libraries
+include_directories(
+    ${KDEBASE_WORKSPACE_SOURCE_DIR}/kwin/lib
+    )
+
+# Install the KWin/Effect service type
+install( FILES kwineffect.desktop DESTINATION ${SERVICETYPES_INSTALL_DIR} )
+
+# Create initial variables
+set( kwin4_effect_builtins_sources )
+set( kwin4_effect_builtins_config_sources configs_builtins.cpp )
+set( kwin4_effect_include_directories )
+
+###############################################################################
+# Built-in effects go here
+
+# Common effects
+include( boxswitch/CMakeLists.txt )
+include( desktopgrid/CMakeLists.txt )
+include( dialogparent/CMakeLists.txt )
+include( diminactive/CMakeLists.txt )
+include( dimscreen/CMakeLists.txt )
+include( fade/CMakeLists.txt )
+include( fadedesktop/CMakeLists.txt )
+include( fallapart/CMakeLists.txt )
+include( highlightwindow/CMakeLists.txt )
+include( login/CMakeLists.txt )
+include( logout/CMakeLists.txt )
+include( magiclamp/CMakeLists.txt )
+include( translucency/CMakeLists.txt )
+include( minimizeanimation/CMakeLists.txt )
+include( presentwindows/CMakeLists.txt )
+include( scalein/CMakeLists.txt )
+include( shadow/CMakeLists.txt )
+include( showfps/CMakeLists.txt )
+include( showpaint/CMakeLists.txt )
+include( slide/CMakeLists.txt )
+include( slideback/CMakeLists.txt )
+include( taskbarthumbnail/CMakeLists.txt )
+include( thumbnailaside/CMakeLists.txt )
+include( zoom/CMakeLists.txt )
+
+# OpenGL-specific effects
+if( KWIN_HAVE_OPENGL_COMPOSITING )
+    #include( blur/CMakeLists.txt )
+    include( coverswitch/CMakeLists.txt )
+    include( cube/CMakeLists.txt )
+    include( explosion/CMakeLists.txt )
+    include( flipswitch/CMakeLists.txt )
+    include( invert/CMakeLists.txt )
+    include( lookingglass/CMakeLists.txt )
+    include( magnifier/CMakeLists.txt )
+    include( mousemark/CMakeLists.txt )
+    include( sharpen/CMakeLists.txt )
+    include( sheet/CMakeLists.txt )
+    include( snaphelper/CMakeLists.txt )
+    include( snow/CMakeLists.txt )
+    include( trackmouse/CMakeLists.txt )
+    include( wobblywindows/CMakeLists.txt )
+endif( KWIN_HAVE_OPENGL_COMPOSITING )
+
+###############################################################################
+
+# Add the builtins plugin
+KWIN4_ADD_EFFECT( builtins ${kwin4_effect_builtins_sources} )
+KWIN4_ADD_EFFECT_CONFIG( builtins ${kwin4_effect_builtins_config_sources} )
+KWIN4_EFFECT_LINK_XRENDER( builtins )
+
+# Install global data files
+install( FILES
+    _data/circle-edgy.png
+    _data/circle.png
+    DESTINATION ${DATA_INSTALL_DIR}/kwin )

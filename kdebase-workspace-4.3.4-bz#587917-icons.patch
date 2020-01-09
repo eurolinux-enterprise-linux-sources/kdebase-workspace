@@ -1,0 +1,12 @@
+diff -up kdebase-workspace-4.3.4/ksysguard/gui/ksysguard.desktop.me kdebase-workspace-4.3.4/ksysguard/gui/ksysguard.desktop
+--- kdebase-workspace-4.3.4/ksysguard/gui/ksysguard.desktop.me	2011-07-19 16:52:32.951930485 +0200
++++ kdebase-workspace-4.3.4/ksysguard/gui/ksysguard.desktop	2011-07-19 16:52:45.815290343 +0200
+@@ -77,7 +77,7 @@ Name[x-test]=xxSystem Monitorxx
+ Name[zh_CN]=系统监视器
+ Name[zh_TW]=系統監視器
+ Exec=ksysguard %U
+-Icon=utilities-system-monitor
++Icon=kde-utilities-system-monitor
+ Type=Application
+ MimeType=application/x-ksysguard;
+ X-DocPath=ksysguard/index.html

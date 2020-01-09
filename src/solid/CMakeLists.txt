@@ -1,0 +1,40 @@
+include(MacroEnsureVersion)
+macro_optional_find_package(NetworkManager)
+    
+macro_optional_find_package(BlueZ)
+macro_log_feature(BLUEZ_FOUND "BlueZ" "BlueZ is the Linux Bluetooth protocol stack" "http://www.bluez.org" FALSE "" "For Bluetooth support in KDE")
+
+add_subdirectory(kcm)
+add_subdirectory(solid-actions-kcm)
+
+IF("${CMAKE_SYSTEM}" MATCHES "Linux")
+  add_subdirectory(hal)
+  add_subdirectory(networking)
+  add_subdirectory(solidshell)
+ENDIF("${CMAKE_SYSTEM}" MATCHES "Linux")
+
+set(HAVE_NETWORKMANAGER FALSE)
+if(NETWORKMANAGER_FOUND)
+  macro_ensure_version_range("0.6.5" ${NETWORKMANAGER_VERSION} "0.7.0" NM_0_6)
+  if (NM_0_6)
+    message(STATUS "Will build networkmanger-0.6")
+    set(HAVE_NETWORKMANAGER TRUE)
+    add_subdirectory(networkmanager-0.6)
+  endif (NM_0_6)
+
+  macro_ensure_version("0.7.0" ${NETWORKMANAGER_VERSION} NM_0_7)
+  if (NM_0_7)
+    message(STATUS "Will build networkmanger-0.7")
+    set(HAVE_NETWORKMANAGER TRUE)
+    add_subdirectory(networkmanager-0.7)
+  endif (NM_0_7)
+endif (NETWORKMANAGER_FOUND)
+macro_log_feature(HAVE_NETWORKMANAGER "NetworkManager" "A daemon for user controlled networking" "http://www.gnome.org/projects/NetworkManager" FALSE "0.6.5" "Needed for building Network Management support in Solid.")
+
+if(NOT WIN32)
+  macro_optional_add_subdirectory(wicd)
+endif(NOT WIN32)
+
+if(BLUEZ_FOUND)
+  add_subdirectory(bluez)
+endif(BLUEZ_FOUND)

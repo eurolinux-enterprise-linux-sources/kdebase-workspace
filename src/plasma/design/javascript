@@ -1,0 +1,140 @@
+Writing Plasmoids With JavaScript
+=================================
+
+The Plasmoid Package
+===================
+
+Structure
+---------
+http://techbase.kde.org/Projects/Plasma/Package
+
+Installing and Replacing
+------------------------
+plasmapkg
+
+The plasmoid Object
+===================
+Environment:
+    FormFactor formFactor();
+    Location location();
+    QString currentActivity();
+    bool shouldConserveResources();
+
+Properties:
+    AspectRatioMode aspectRatioMode();
+    void setAspectRatioMode(AspectRatioMode mode);
+    bool isBusy();
+    setFailedToLaunch(bool failed, const QString &reason = QString());
+    setBusy(bool busy);
+
+Geometry:
+    resize(qreal w, qreal h);
+    setMinimumSize(qreal w, qreal h);
+    setPreferredSize(qreal w, qreal h);
+
+Painting and Layout:
+    update();
+    setLayout(QGraphicsLayout *layout);
+    QGraphicsLayout *layout() const;
+
+Package Access:
+    QString file(const QString &type, const QString &fileName)
+    QString file(const QString &type)
+
+Getting Notified of Changes
+===========================
+Events:
+plasmoid.formFactorChanged
+plasmoid.locationChanged
+plasmoid.contextChanged
+
+Possibilities for 4.3
+---------------------
+networkAvailableChanged(bool)
+conserveResourcesChanged(bool)
+
+User Interface Elements
+=======================
+
+Types of Widgets
+----------------
+BusyWidget
+CheckBox
+ComboBox
+FlashingLabel
+Frame
+GroupBox
+IconWidget
+Label
+LineEdit
+Meter
+PushButton
+RadioButton
+ScrollBar
+SignalPlotter
+Slider
+SvgWidget
+TabBar
+TextEdit
+ToolButton
+TreeView
+WebView
+
+Layouts
+-------
+GridLayout
+LinearLayout
+
+Creating Items By Hand
+----------------------
+createWidget
+createLayout
+
+Creating Items From UI Files
+----------------------------
+
+Painting
+========
+
+SVG Images
+---------
+PlasmaSvg
+PlasmaFrameSvg
+
+Painting on the Canvas
+----------------------
+plasmoid.paintInterface = function(painter)
+QPainter
+QFont
+QRectF
+QSizeF
+QPoint
+
+Accessing Sources of Data
+=========================
+dataEngine(string name)
+dataUpdate
+
+Configuration
+=============
+Declaring Config Values
+-----------------------
+KConfigXt XML -> main.xml
+
+Accessing Configuration Data
+----------------------------
+activeConfig
+plasmoid.readConfig(string)
+WriteConfig(string, var)
+
+User Customization
+------------------
+Qt UI file
+configChanged()
+
+Other Functions and Classes
+===========================
+print(string)
+GraphicsItem
+Timer
+Url

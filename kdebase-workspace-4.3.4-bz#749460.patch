@@ -1,0 +1,1624 @@
+diff -up kdebase-workspace-4.3.4/libs/taskmanager/abstractgroupableitem.cpp.me kdebase-workspace-4.3.4/libs/taskmanager/abstractgroupableitem.cpp
+--- kdebase-workspace-4.3.4/libs/taskmanager/abstractgroupableitem.cpp.me	2012-07-04 16:29:04.287362193 +0200
++++ kdebase-workspace-4.3.4/libs/taskmanager/abstractgroupableitem.cpp	2012-07-04 16:29:37.023396781 +0200
+@@ -82,6 +82,11 @@ QString AbstractGroupableItem::name() co
+     return QString();
+ }
+ 
++WindowList AbstractGroupableItem::winIds() const
++{
++    return WindowList();
++}
++
+ GroupPtr AbstractGroupableItem::parentGroup() const
+ {
+     //kDebug();
+diff -up kdebase-workspace-4.3.4/libs/taskmanager/abstractgroupableitem.h.me kdebase-workspace-4.3.4/libs/taskmanager/abstractgroupableitem.h
+--- kdebase-workspace-4.3.4/libs/taskmanager/abstractgroupableitem.h.me	2012-07-04 16:27:50.695360860 +0200
++++ kdebase-workspace-4.3.4/libs/taskmanager/abstractgroupableitem.h	2012-07-04 16:28:47.394363719 +0200
+@@ -57,6 +57,8 @@ public:
+     virtual QIcon icon() const;
+     virtual QString name() const;
+ 
++    virtual WindowList winIds() const;
++
+     /**
+     *   Returns the parent group of this item
+     */
+diff -up kdebase-workspace-4.3.4/libs/taskmanager/abstractgroupingstrategy.cpp.me kdebase-workspace-4.3.4/libs/taskmanager/abstractgroupingstrategy.cpp
+--- kdebase-workspace-4.3.4/libs/taskmanager/abstractgroupingstrategy.cpp.me	2012-07-04 16:32:26.652363720 +0200
++++ kdebase-workspace-4.3.4/libs/taskmanager/abstractgroupingstrategy.cpp	2012-07-04 16:35:42.266363544 +0200
+@@ -140,9 +140,8 @@ TaskGroup* AbstractGroupingStrategy::cre
+         newGroup->add(item);
+     }
+ 
+-    if (oldGroup) {
+-        oldGroup->add(newGroup);
+-    }
++    Q_ASSERT(oldGroup);
++    oldGroup->add(newGroup);
+ 
+     return newGroup;
+ }
+@@ -195,21 +194,33 @@ void AbstractGroupingStrategy::checkGrou
+     }
+ }
+ 
+-bool AbstractGroupingStrategy::addItemToGroup(AbstractGroupableItem *item, TaskGroup *group)
++bool AbstractGroupingStrategy::manualGroupingRequest(AbstractGroupableItem* taskItem, TaskGroup* groupItem)
+ {
+     if (editableGroupProperties() & Members) {
+-        group->add(item);
++        groupItem->add(taskItem);
+         return true;
+     }
+ 
+     return false; 
+ }
+ 
++//TODO move to manual strategy?
++bool AbstractGroupingStrategy::manualGroupingRequest(ItemList items)
++{
++    if (editableGroupProperties() & Members) {
++        TaskGroup *group = createGroup(items);
++        setName(nameSuggestions(group).first(), group);
++        setColor(colorSuggestions(group).first(), group);
++        setIcon(iconSuggestions(group).first(), group);
++        return true;
++    }
++    return false;
++}
++
+ bool AbstractGroupingStrategy::setName(const QString &name, TaskGroup *group)
+ {
+     d->usedNames.removeAll(group->name());
+     if ((editableGroupProperties() & Name) && (!d->usedNames.contains(name))) {
+-        //TODO editableGroupProperties shouldn't be tested here i think
+         d->usedNames.append(name);
+         group->setName(name);
+         return true;
+diff -up kdebase-workspace-4.3.4/libs/taskmanager/abstractgroupingstrategy.h.me kdebase-workspace-4.3.4/libs/taskmanager/abstractgroupingstrategy.h
+--- kdebase-workspace-4.3.4/libs/taskmanager/abstractgroupingstrategy.h.me	2012-07-04 16:29:49.270363510 +0200
++++ kdebase-workspace-4.3.4/libs/taskmanager/abstractgroupingstrategy.h	2012-07-04 16:32:16.783362199 +0200
+@@ -84,9 +84,6 @@ public:
+ 
+     /** The following functions check if a property is editable and sets it on group*/
+ 
+-    /**	Adds an item to group if EditableGroupProperties::Members is set*/
+-    virtual bool addItemToGroup(AbstractGroupableItem *, TaskGroup*);
+-
+     virtual bool setName(const QString &, TaskGroup*);
+     /** Returns a List of unused Names*/
+     virtual QList<QString> nameSuggestions(TaskGroup *);
+@@ -99,6 +96,20 @@ public:
+     /** Returns a list of icons*/
+     virtual QList<QIcon> iconSuggestions(TaskGroup *);
+ 
++    /**
++    * Adds an item to group if EditableGroupProperties::Members is set
++    */
++    bool manualGroupingRequest(AbstractGroupableItem* taskItem, TaskGroup* groupItem);
++    /**
++    * Creates a new group if EditableGroupProperties::Members is set
++    * Should be called if the user wants to group items manually
++    */
++    bool manualGroupingRequest(ItemList items);
++
++protected:
++    /** Create a group with items and returns the newly created group */
++    TaskGroup* createGroup(ItemList items);
++
+ Q_SIGNALS:
+     void groupRemoved(TaskGroup*);
+ 
+@@ -112,11 +123,6 @@ protected Q_SLOTS:
+      /** Returns the strategy type */
+     void setType(GroupManager::TaskGroupingStrategy type);
+ 
+-public:
+-//rotected:
+-    /** Create a group with items and returns the newly created group */
+-    TaskGroup* createGroup(ItemList items);
+-
+ private:
+     class Private;
+     Private * const d;
+diff -up kdebase-workspace-4.3.4/libs/taskmanager/abstractsortingstrategy.cpp.me kdebase-workspace-4.3.4/libs/taskmanager/abstractsortingstrategy.cpp
+--- kdebase-workspace-4.3.4/libs/taskmanager/abstractsortingstrategy.cpp.me	2012-07-04 16:39:44.811361966 +0200
++++ kdebase-workspace-4.3.4/libs/taskmanager/abstractsortingstrategy.cpp	2012-07-04 16:42:01.673387235 +0200
+@@ -81,6 +81,7 @@ void AbstractSortingStrategy::handleGrou
+     d->managedGroups.append(group);
+     disconnect(group, 0, this, 0); //To avoid duplicate connections
+     connect(group, SIGNAL(itemAdded(AbstractGroupableItem *)), this, SLOT(handleItem(AbstractGroupableItem *)));
++    connect(group, SIGNAL(itemAdded(AbstractGroupableItem *)), this, SLOT(check())); //groups don't have the full windowlist from the beginning, recheck them (for manual sorting)
+     connect(group, SIGNAL(destroyed()), this, SLOT(removeGroup())); //FIXME necessary?
+     ItemList sortedList = group->members();
+     sortItems(sortedList); //the sorting doesn't work with totally unsorted lists, therefore we sort it in the correct order the first time
+@@ -150,9 +151,16 @@ void AbstractSortingStrategy::check(Abst
+     }
+ }
+ 
+-void AbstractSortingStrategy::desktopChanged(int newDesktop)
++void AbstractSortingStrategy::sortItems(ItemList &items)
+ {
+-    Q_UNUSED(newDesktop)
++    Q_UNUSED(items);
++}
++
++bool AbstractSortingStrategy::manualSortingRequest(AbstractGroupableItem *item, int newIndex)
++{
++    Q_UNUSED(item);
++    Q_UNUSED(newIndex);
++    return false;
+ }
+ 
+ bool AbstractSortingStrategy::moveItem(AbstractGroupableItem *item, int newIndex)
+diff -up kdebase-workspace-4.3.4/libs/taskmanager/abstractsortingstrategy.h.me kdebase-workspace-4.3.4/libs/taskmanager/abstractsortingstrategy.h
+--- kdebase-workspace-4.3.4/libs/taskmanager/abstractsortingstrategy.h.me	2012-07-04 16:35:46.470362514 +0200
++++ kdebase-workspace-4.3.4/libs/taskmanager/abstractsortingstrategy.h	2012-07-04 16:39:32.957402706 +0200
+@@ -50,12 +50,12 @@ public:
+     /** Adds group under control of sorting strategy. all added subgroups are automatically added to this sortingStrategy*/
+     void handleGroup(TaskGroup *);
+ 
+-    /** DesktopChanges time to backup any needed data */
+-    virtual void desktopChanged(int newDesktop);
+-
+     /** Moves Item to new index*/
+     bool moveItem(AbstractGroupableItem *, int);
+ 
++    /**Reimplement this to support manual sorting*/
++    virtual bool manualSortingRequest(AbstractGroupableItem *item, int newIndex);
++
+ protected Q_SLOTS:
+      /** Handles a new item, is typically called after an item was added to a handled group*/
+     virtual void handleItem(AbstractGroupableItem *);
+@@ -75,13 +75,13 @@ private:
+      *        in by value and should be in the proprer sorting order when
+      *        the method returns.
+      */
+-    virtual void sortItems(ItemList &ites) = 0;
++    virtual void sortItems(ItemList &ites);
+ 
+     class Private;
+     Private * const d;
+ };
+ 
+-typedef QHash <AbstractGroupableItem*, int> itemHashTable;
++typedef QHash <int, WindowList> itemHashTable;
+ typedef QHash <int, itemHashTable*> desktopHashTable;
+ 
+ } // TaskManager namespace
+diff -up kdebase-workspace-4.3.4/libs/taskmanager/groupmanager.cpp.me kdebase-workspace-4.3.4/libs/taskmanager/groupmanager.cpp
+--- kdebase-workspace-4.3.4/libs/taskmanager/groupmanager.cpp.me	2012-07-04 16:44:03.979383399 +0200
++++ kdebase-workspace-4.3.4/libs/taskmanager/groupmanager.cpp	2012-07-04 17:49:34.405391140 +0200
+@@ -49,7 +49,6 @@ class GroupManagerPrivate
+ public:
+     GroupManagerPrivate(GroupManager *manager)
+         : q(manager),
+-          rootGroup(0),
+           sortingStrategy(GroupManager::NoSorting),
+           groupingStrategy(GroupManager::NoGrouping),
+           lastGroupingStrategy(GroupManager::NoGrouping),
+@@ -84,10 +83,10 @@ public:
+     void addStartup(StartupPtr);
+     void removeStartup(StartupPtr);
+ 
++    TaskGroup *currentRootGroup();
++
+     GroupManager *q;
+-    QHash<TaskPtr, TaskItem*> itemList; //holds all tasks of the Taskmanager
+     QHash<StartupPtr, TaskItem*> startupList;
+-    TaskGroup *rootGroup; //the current layout
+     GroupManager::TaskSortingStrategy sortingStrategy;
+     GroupManager::TaskGroupingStrategy groupingStrategy;
+     GroupManager::TaskGroupingStrategy lastGroupingStrategy;
+@@ -105,6 +104,9 @@ public:
+     bool onlyGroupWhenFull : 1;
+     bool changingGroupingStrategy : 1;
+     QUuid configToken;
++    QHash<int, TaskGroup*> rootGroups; //container for groups
++    int currentDesktop;
++
+ };
+ 
+ 
+@@ -119,7 +121,8 @@ GroupManager::GroupManager(QObject *pare
+     connect(TaskManager::self(), SIGNAL(startupAdded(StartupPtr)), this, SLOT(addStartup(StartupPtr)));
+     connect(TaskManager::self(), SIGNAL(startupRemoved(StartupPtr)), this, SLOT(removeStartup(StartupPtr)));
+ 
+-    d->rootGroup = new TaskGroup(this, "RootGroup", Qt::transparent);
++    d->currentDesktop = TaskManager::self()->currentDesktop();
++    d->rootGroups[d->currentDesktop] = new TaskGroup(this, "RootGroup", Qt::transparent);
+ 
+     d->reloadTimer.setSingleShot(true);
+     d->reloadTimer.setInterval(0);
+@@ -140,10 +143,14 @@ GroupManager::~GroupManager()
+     TaskManager::TaskManager::self()->setTrackGeometry(false, d->configToken);
+     delete d->abstractSortingStrategy;
+     delete d->abstractGroupingStrategy;
+-    delete d->rootGroup;
+     delete d;
+ }
+ 
++TaskGroup *GroupManagerPrivate::currentRootGroup()
++{
++    return rootGroups[currentDesktop];
++}
++
+ void GroupManagerPrivate::reloadTasks()
+ {
+     reloadTimer.start();
+@@ -179,8 +186,8 @@ void GroupManagerPrivate::addStartup(Sta
+     //kDebug();
+     if (!startupList.contains(task)) {
+         TaskItem *item = new TaskItem(q, task);
+-        startupList.insert(task, item); 
+-        rootGroup->add(item);
++        startupList.insert(task, item);
++        currentRootGroup()->add(item);
+         QObject::connect(item, SIGNAL(destroyed(AbstractGroupableItem*)),
+                          q, SLOT(startupItemDestroyed(AbstractGroupableItem*)));
+     }
+@@ -198,8 +205,6 @@ void GroupManagerPrivate::removeStartup(
+     if (item->parentGroup()) {
+         item->parentGroup()->remove(item);
+     }
+-
+-    emit q->itemRemoved(item);
+ }
+ 
+ bool GroupManagerPrivate::addTask(TaskPtr task)
+@@ -259,10 +264,7 @@ bool GroupManagerPrivate::addTask(TaskPt
+ 
+     //Ok the Task should be displayed
+     TaskItem *item = 0;
+-    if (itemList.contains(task)) {
+-        // we pretend to add it again so the group strategy evaluates it again
+-        item = itemList.value(task);
+-    } else {
++    if (!currentRootGroup()->getMemberByWId(task->window())) {
+         // first search for an existing startuptask for this task
+         QHash<StartupPtr, TaskItem *>::iterator it = startupList.begin();
+         QHash<StartupPtr, TaskItem *>::iterator itEnd = startupList.end();
+@@ -285,16 +287,14 @@ bool GroupManagerPrivate::addTask(TaskPt
+ 
+         QObject::connect(item, SIGNAL(destroyed(AbstractGroupableItem*)),
+                          q, SLOT(taskItemDestroyed(AbstractGroupableItem*)));
+-        itemList.insert(task, item);
+-    }
+ 
+-    geometryTasks.insert(task);
+-
+-    //Find a fitting group for the task with GroupingStrategies
+-    if (abstractGroupingStrategy && !task->demandsAttention()) { //do not group attention tasks
+-        abstractGroupingStrategy->handleItem(item);
+-    } else {
+-        rootGroup->add(item);
++        //Find a fitting group for the task with GroupingStrategies
++        if (abstractGroupingStrategy && !task->demandsAttention()) { //do not group attention tasks
++            abstractGroupingStrategy->handleItem(item);
++        } else {
++            currentRootGroup()->add(item);
++        }
++        geometryTasks.insert(task);
+     }
+ 
+     return true;
+@@ -306,7 +306,8 @@ void GroupManagerPrivate::removeTask(Tas
+     //kDebug() << "remove: " << task->visibleName();
+     geometryTasks.remove(task);
+ 
+-    TaskItem *item = itemList.value(task);
++    AbstractGroupableItem *item = currentRootGroup()->getMemberByWId(task->window());
++
+     if (!item) {
+         // this can happen if the window hasn't been caught previously, 
+         // of it it is an ignored type such as a NET::Utility type window
+@@ -318,17 +319,12 @@ void GroupManagerPrivate::removeTask(Tas
+         item->parentGroup()->remove(item);
+     }
+ 
+-    emit q->itemRemoved(item);
+-
+-    itemList.remove(task);
+-    //FIXME: We keep it in the itemlist because it may return: what does actually mean?
+-    //the item must exist as long as the TaskPtr does because of activate calls so don't delete the item here, it will delete itself. We keep it in the itemlist because it may return
++    //the item must exist as long as the TaskPtr does because of activate calls so don't delete the item here, it will delete itself.
+ }
+ 
+ void GroupManagerPrivate::taskItemDestroyed(AbstractGroupableItem *item)
+ {
+     TaskItem *taskItem = static_cast<TaskItem*>(item);
+-    itemList.remove(itemList.key(taskItem));
+     geometryTasks.remove(taskItem->task());
+ }
+ 
+@@ -341,27 +337,16 @@ void GroupManagerPrivate::startupItemDes
+ 
+ bool GroupManager::manualGroupingRequest(AbstractGroupableItem* item, TaskGroup* groupItem)
+ {
+-    //kDebug();
+     if (d->abstractGroupingStrategy) {
+-        return d->abstractGroupingStrategy->addItemToGroup(item, groupItem);
+-    //    kDebug() << d->abstractGroupingStrategy->type() << ManualGrouping;
+-        /*if (d->abstractGroupingStrategy->type() == ManualGrouping) {
+-   //         kDebug();
+-            return (qobject_cast<ManualGroupingStrategy*>(d->abstractGroupingStrategy))->addItemToGroup(item,groupItem);
+-        }*/
++        return d->abstractGroupingStrategy->manualGroupingRequest(item, groupItem);
+     }
+     return false;
+ }
+ 
+ bool GroupManager::manualGroupingRequest(ItemList items)
+ {
+-    //kDebug();
+-    if (d->abstractGroupingStrategy && d->abstractGroupingStrategy->type() == ManualGrouping) {
+-        //kDebug();
+-        ManualGroupingStrategy *strategy = qobject_cast<ManualGroupingStrategy*>(d->abstractGroupingStrategy);
+-        if (strategy) {
+-            return strategy->groupItems(items);
+-        }
++    if (d->abstractGroupingStrategy) {
++            return d->abstractGroupingStrategy->manualGroupingRequest(items);
+     }
+ 
+     return false;
+@@ -369,12 +354,8 @@ bool GroupManager::manualGroupingRequest
+ 
+ bool GroupManager::manualSortingRequest(AbstractGroupableItem* taskItem, int newIndex)
+ {
+-    //kDebug();
+-    if (d->abstractSortingStrategy && d->abstractSortingStrategy->type() == ManualSorting) {
+-        ManualSortingStrategy *strategy = qobject_cast<ManualSortingStrategy*>(d->abstractSortingStrategy);
+-        if (strategy) {
+-            return strategy->moveItem(taskItem, newIndex);
+-        }
++    if (d->abstractSortingStrategy) {
++        return d->abstractSortingStrategy->manualSortingRequest(taskItem, newIndex);
+     }
+ 
+     return false;
+@@ -383,7 +364,7 @@ bool GroupManager::manualSortingRequest(
+ 
+ GroupPtr GroupManager::rootGroup() const
+ {
+-    return d->rootGroup;
++    return d->currentRootGroup();
+ }
+ 
+ void GroupManagerPrivate::currentDesktopChanged(int newDesktop)
+@@ -393,12 +374,28 @@ void GroupManagerPrivate::currentDesktop
+         return;
+     }
+ 
+-    if (abstractSortingStrategy) {
+-        abstractSortingStrategy->desktopChanged(newDesktop);
++    if (currentDesktop == newDesktop) {
++        return;
++    }
++
++    if (!rootGroups.contains(newDesktop)) {
++        kDebug() << "created new desk group";
++        rootGroups[newDesktop] = new TaskGroup(q, "RootGroup", Qt::transparent);
++        if (abstractSortingStrategy) {
++            abstractSortingStrategy->handleGroup(rootGroups[newDesktop]);
++        }
+     }
+ 
+-    if (abstractGroupingStrategy) {
+-        abstractGroupingStrategy->desktopChanged(newDesktop);
++    if (onlyGroupWhenFull) {
++        QObject::disconnect(currentRootGroup(), SIGNAL(itemAdded(AbstractGroupableItem *)), q, SLOT(checkIfFull()));
++        QObject::disconnect(currentRootGroup(), SIGNAL(itemRemoved(AbstractGroupableItem *)), q, SLOT(checkIfFull()));
++    }
++
++    currentDesktop = newDesktop;
++
++    if (onlyGroupWhenFull) {
++        QObject::connect(currentRootGroup(), SIGNAL(itemAdded(AbstractGroupableItem *)), q, SLOT(checkIfFull()));
++        QObject::connect(currentRootGroup(), SIGNAL(itemRemoved(AbstractGroupableItem *)), q, SLOT(checkIfFull()));
+     }
+ 
+     reloadTasks();
+@@ -516,12 +513,12 @@ void GroupManager::setOnlyGroupWhenFull(
+ 
+     d->onlyGroupWhenFull = onlyGroupWhenFull;
+ 
+-    disconnect(d->rootGroup, SIGNAL(itemAdded(AbstractGroupableItem *)), this, SLOT(checkIfFull()));
+-    disconnect(d->rootGroup, SIGNAL(itemRemoved(AbstractGroupableItem *)), this, SLOT(checkIfFull()));
++    disconnect(d->currentRootGroup(), SIGNAL(itemAdded(AbstractGroupableItem *)), this, SLOT(checkIfFull()));
++    disconnect(d->currentRootGroup(), SIGNAL(itemRemoved(AbstractGroupableItem *)), this, SLOT(checkIfFull()));
+ 
+     if (onlyGroupWhenFull) {
+-        connect(d->rootGroup, SIGNAL(itemAdded(AbstractGroupableItem *)), this, SLOT(checkIfFull()));
+-        connect(d->rootGroup, SIGNAL(itemRemoved(AbstractGroupableItem *)), this, SLOT(checkIfFull()));
++        connect(d->currentRootGroup(), SIGNAL(itemAdded(AbstractGroupableItem *)), this, SLOT(checkIfFull()));
++        connect(d->currentRootGroup(), SIGNAL(itemRemoved(AbstractGroupableItem *)), this, SLOT(checkIfFull()));
+         d->checkIfFull();
+     }
+ }
+@@ -552,7 +549,7 @@ void GroupManagerPrivate::actuallyCheckI
+         return;
+     }
+ 
+-    if (itemList.size() >= groupIsFullLimit) {
++    if (currentRootGroup()->totalSize() >= groupIsFullLimit) {
+         if (!abstractGroupingStrategy) {
+             geometryTasks.clear();
+             q->setGroupingStrategy(GroupManager::ProgramGrouping);
+@@ -573,7 +570,7 @@ bool GroupManager::showOnlyCurrentScreen
+ void GroupManager::setShowOnlyCurrentScreen(bool showOnlyCurrentScreen)
+ {
+     d->showOnlyCurrentScreen = showOnlyCurrentScreen;
+-    d->reloadTasks();
++    reconnect();
+ }
+ 
+ bool GroupManager::showOnlyCurrentDesktop() const
+@@ -584,7 +581,7 @@ bool GroupManager::showOnlyCurrentDeskto
+ void GroupManager::setShowOnlyCurrentDesktop(bool showOnlyCurrentDesktop)
+ {
+     d->showOnlyCurrentDesktop = showOnlyCurrentDesktop;
+-    d->reloadTasks();
++    reconnect();
+ }
+ 
+ bool GroupManager::showOnlyMinimized() const
+@@ -595,6 +592,7 @@ bool GroupManager::showOnlyMinimized() c
+ void GroupManager::setShowOnlyMinimized(bool showOnlyMinimized)
+ {
+     d->showOnlyMinimized = showOnlyMinimized;
++    reconnect();
+ }
+ 
+ GroupManager::TaskSortingStrategy GroupManager::sortingStrategy() const
+@@ -623,17 +621,14 @@ void GroupManager::setSortingStrategy(Ta
+     switch (sortOrder) {
+         case ManualSorting:
+             d->abstractSortingStrategy = new ManualSortingStrategy(this);
+-            d->abstractSortingStrategy->handleGroup(d->rootGroup);
+             break;
+ 
+         case AlphaSorting:
+             d->abstractSortingStrategy = new AlphaSortingStrategy(this);
+-            d->abstractSortingStrategy->handleGroup(d->rootGroup);
+             break;
+ 
+         case DesktopSorting:
+             d->abstractSortingStrategy = new DesktopSortingStrategy(this);
+-            d->abstractSortingStrategy->handleGroup(d->rootGroup);
+             break;
+ 
+         case NoSorting: //manual and no grouping result both in non automatic grouping
+@@ -642,9 +637,14 @@ void GroupManager::setSortingStrategy(Ta
+         default:
+             kDebug() << "Invalid Strategy";
+     }
++    if (d->abstractSortingStrategy) {
++        foreach (TaskGroup *group, d->rootGroups) {
++            d->abstractSortingStrategy->handleGroup(group);
++        }
++    }
+ 
+     d->sortingStrategy = sortOrder;
+-    d->reloadTasks();
++    reconnect();
+ }
+ 
+ GroupManager::TaskGroupingStrategy GroupManager::groupingStrategy() const
+@@ -668,8 +668,8 @@ void GroupManager::setGroupingStrategy(T
+ 
+     //kDebug() << strategy << kBacktrace();
+     if (d->onlyGroupWhenFull) {
+-        disconnect(d->rootGroup, SIGNAL(itemAdded(AbstractGroupableItem *)), this, SLOT(checkIfFull()));
+-        disconnect(d->rootGroup, SIGNAL(itemRemoved(AbstractGroupableItem *)), this, SLOT(checkIfFull()));
++        disconnect(d->currentRootGroup(), SIGNAL(itemAdded(AbstractGroupableItem *)), this, SLOT(checkIfFull()));
++        disconnect(d->currentRootGroup(), SIGNAL(itemRemoved(AbstractGroupableItem *)), this, SLOT(checkIfFull()));
+     }
+ 
+     if (d->abstractGroupingStrategy) {
+@@ -700,16 +700,11 @@ void GroupManager::setGroupingStrategy(T
+ 
+     d->groupingStrategy = strategy;
+ 
+-    if (d->abstractGroupingStrategy) {
+-        connect(d->abstractGroupingStrategy, SIGNAL(groupRemoved(TaskGroup*)),
+-                this, SIGNAL(groupRemoved(TaskGroup*)));
+-    }
+-
+     d->actuallyReloadTasks();
+ 
+     if (d->onlyGroupWhenFull) {
+-        connect(d->rootGroup, SIGNAL(itemAdded(AbstractGroupableItem *)), this, SLOT(checkIfFull()));
+-        connect(d->rootGroup, SIGNAL(itemRemoved(AbstractGroupableItem *)), this, SLOT(checkIfFull()));
++        connect(d->currentRootGroup(), SIGNAL(itemAdded(AbstractGroupableItem *)), this, SLOT(checkIfFull()));
++        connect(d->currentRootGroup(), SIGNAL(itemRemoved(AbstractGroupableItem *)), this, SLOT(checkIfFull()));
+     }
+ 
+     d->changingGroupingStrategy = false;
+diff -up kdebase-workspace-4.3.4/libs/taskmanager/groupmanager.h.me kdebase-workspace-4.3.4/libs/taskmanager/groupmanager.h
+--- kdebase-workspace-4.3.4/libs/taskmanager/groupmanager.h.me	2012-07-04 16:42:21.404458529 +0200
++++ kdebase-workspace-4.3.4/libs/taskmanager/groupmanager.h	2012-07-04 16:43:35.354390199 +0200
+@@ -118,20 +118,14 @@ public:
+      * The Visualization is responsible to update the screen number the visualization is currently on.
+      */
+     void setScreen(int screen);
++    /**
++     * Reconnect all neccessary signals to the taskmanger, and clear the per desktop stored rootGroups
++     */
++    void reconnect();
+ 
+ Q_SIGNALS:
+     /** Signal that the rootGroup has to be reloaded in the visualization */
+     void reload();
+-    /** Signal that the item is no longer available */
+-    void itemRemoved(AbstractGroupableItem*);
+-    /** Signal that a group was removed */
+-    void groupRemoved(TaskGroup*);
+-
+-public Q_SLOTS:
+-    /**
+-    *   listen to the relevant signals of taskmanager
+-    */
+-    void reconnect();
+ 
+ private:
+     Q_PRIVATE_SLOT(d, void currentDesktopChanged(int))
+diff -up kdebase-workspace-4.3.4/libs/taskmanager/strategies/manualgroupingstrategy.cpp.me kdebase-workspace-4.3.4/libs/taskmanager/strategies/manualgroupingstrategy.cpp
+--- kdebase-workspace-4.3.4/libs/taskmanager/strategies/manualgroupingstrategy.cpp.me	2012-07-04 17:18:40.273385473 +0200
++++ kdebase-workspace-4.3.4/libs/taskmanager/strategies/manualgroupingstrategy.cpp	2012-07-04 17:24:03.811437910 +0200
+@@ -41,21 +41,14 @@ class ManualGroupingStrategy::Private
+ {
+ public:
+     Private()
+-        : currentTemplate(0),
+-          editableGroupProperties(AbstractGroupingStrategy::All),
+-          tempItem(0),
+-          tempGroup(0),
+-          oldDesktop(TaskManager::self()->currentDesktop())
++        : editableGroupProperties(AbstractGroupingStrategy::All),
++          tempItem(0)
+     {
+     }
+ 
+-    QHash<int, TaskGroupTemplate*> templateTrees;
+-    TaskGroupTemplate* currentTemplate;
+-    QList<TaskGroup*> protectedGroups;
+     AbstractGroupingStrategy::EditableGroupProperties editableGroupProperties;
+     AbstractGroupableItem *tempItem;
+     QPointer<TaskGroup> tempGroup;
+-    int oldDesktop;
+ };
+ 
+ 
+@@ -123,434 +116,13 @@ void ManualGroupingStrategy::removeGroup
+     d->tempGroup = 0;
+ }
+ 
+-void ManualGroupingStrategy::unprotectGroup(TaskGroup *group)
+-{
+-    //kDebug() << group->name() << d->protectedGroups.count(group);
+-    d->protectedGroups.removeOne(group);
+-    if (group->members().isEmpty()) {
+-        closeGroup(group);//check if group is needed anymore
+-    }
+-}
+-
+-void ManualGroupingStrategy::protectGroup(TaskGroup *group)
+-{
+-    //kDebug() << group->name();
+-    d->protectedGroups.append(group);
+-}
+-
+-//Check if the item was previously manually grouped
+ void ManualGroupingStrategy::handleItem(AbstractGroupableItem *item)
+ {
+     if (!rootGroup()) {
+         return;
+     }
+ 
+-    //kDebug();
+-    if (d->currentTemplate) { //TODO this won't work over sessions because the task is identified by the pointer (maybe the name without the current status would work), one way would be to store the items per name if the session is closed and load them per name on startup but use the pointer otherwise because of changing names of browsers etc
+-        TaskGroupTemplate *templateGroup = d->currentTemplate;
+-        //kDebug() << templateGroup->name();
+-        if (templateGroup->hasMember(item)) { 
+-            //kDebug() << "item found in template tree";
+-            while(!templateGroup->hasDirectMember(item)) {//Create tree of groups if not already existing
+-                //kDebug() << "Creating group tree";
+-                TaskGroupTemplate *oldTemplateGroup = templateGroup;
+-                AbstractGroupableItem *templateItem = templateGroup->directMember(item);
+-                if (templateItem->isGroupItem()) {
+-                    templateGroup = dynamic_cast<TaskGroupTemplate*>(templateItem);
+-                } else {
+-                    //kDebug() << "Error no template Found";
+-                }
+-                if (templateGroup->group()) {
+-                    oldTemplateGroup->group()->add(templateGroup->group()); //add group to parent Group
+-                } else {
+-                    //kDebug();
+-                    rootGroup()->add(item);
+-                    return;
+-                }
+-            }
+-
+-            //kDebug() << "Item added to group: " << templateGroup->name();
+-            templateGroup->group()->add(item);
+-            templateGroup->remove(item);
+-        } else {
+-            //kDebug() << "Item not in templates";
+-            rootGroup()->add(item);
+-        }
+-    } else {
+-        rootGroup()->add(item);
+-    }
+-}
+-
+-TaskGroupTemplate *ManualGroupingStrategy::createDuplication(TaskGroup *group)
+-{
+-    TaskGroupTemplate *templateGroup = new TaskGroupTemplate(this, group);
+-    return templateGroup;
+-}
+-
+-
+-void ManualGroupingStrategy::desktopChanged(int newDesktop)
+-{
+-    //kDebug() << "old: " << d->oldDesktop << "new: " << newDesktop;
+-    if (d->oldDesktop == newDesktop || !rootGroup()) {
+-        return;
+-    }
+-
+-    //Store the group under the current Desktop
+-    if (d->currentTemplate) {
+-        d->currentTemplate->clear();
+-    }
+-    //kDebug();
+-    TaskGroupTemplate *group = createDuplication(rootGroup());
+-    d->templateTrees.insert(d->oldDesktop, group);
+-    if (d->templateTrees.contains(newDesktop)) {
+-        //kDebug() << "Template found";
+-        d->currentTemplate = d->templateTrees.value(newDesktop);
+-        connect (d->currentTemplate, SIGNAL(destroyed()), this, SLOT(resetCurrentTemplate()));
+-    } else {
+-        d->currentTemplate = 0;
+-    }
+-    d->oldDesktop = newDesktop;
+-}
+-
+-
+-//This function makes sure that if the rootGroup template already got deleted nobody tries to access it again
+-void ManualGroupingStrategy::resetCurrentTemplate()
+-{
+-    //kDebug();
+-    d->currentTemplate = 0;
+-}
+-
+-//The group was moved to another desktop, we have to move it to the rootTree of newDesk
+-void ManualGroupingStrategy::groupChangedDesktop(int newDesktop)
+-{
+-    //kDebug();
+-    TaskGroup *group = qobject_cast<TaskGroup*>(sender());
+-    if (!group || !rootGroup()) {
+-        return;
+-    }
+-
+-    if (newDesktop && (newDesktop != d->oldDesktop)) {
+-        if (group->parentGroup()) {
+-            group->parentGroup()->remove(group);
+-        }
+-    }
+-
+-    TaskGroupTemplate *templateGroup;
+-    if (newDesktop) {
+-        if (d->templateTrees.contains(newDesktop)) {
+-            //kDebug() << "Template found";
+-            templateGroup = d->templateTrees.value(newDesktop);
+-        } else {
+-            //kDebug() << "No Template found";
+-            templateGroup = new TaskGroupTemplate(this, 0);
+-            templateGroup->setGroup(rootGroup());
+-            d->templateTrees.insert(newDesktop, templateGroup);
+-        }
+-        //Add group to all existing desktops
+-    } else {
+-        for (int i = 1; i <= TaskManager::self()->numberOfDesktops(); i++) {
+-            if (d->templateTrees.contains(newDesktop)) {
+-                //kDebug() << "Template found";
+-                templateGroup = d->templateTrees.value(newDesktop);
+-                if (templateGroup->hasMember(group)) {
+-                    continue;
+-                }
+-            } else {
+-                //kDebug() << "No Template found";
+-                templateGroup = new TaskGroupTemplate(this, 0);
+-                templateGroup->setGroup(rootGroup());
+-                d->templateTrees.insert(newDesktop, templateGroup);
+-            }
+-
+-            templateGroup->add(createDuplication(group));
+-        }
+-    }
+-}
+-
+-bool ManualGroupingStrategy::groupItems(ItemList items)
+-{
+-    //kDebug();
+-    TaskGroup *group = createGroup(items);
+-    connect(group, SIGNAL(movedToDesktop(int)), this, SLOT(groupChangedDesktop(int)));
+-    setName(nameSuggestions(group).first(), group);
+-    setColor(colorSuggestions(group).first(), group);
+-    setIcon(iconSuggestions(group).first(), group);
+-    return true;
+-}
+-
+-void ManualGroupingStrategy::closeGroup(TaskGroup *group)
+-{
+-    //kDebug();
+-    if (!d->protectedGroups.contains(group)) {
+-        AbstractGroupingStrategy::closeGroup(group);
+-    } else if (group->parentGroup()) {
+-        group->parentGroup()->remove(group);
+-        //kDebug() << "Group protected";
+-    }
+-}
+-
+-class TaskGroupTemplate::Private
+-{
+-public:
+-    Private()
+-    : group(0),
+-      parentGroup(0),
+-      groupingStrategy(0)
+-    {
+-    }
+-
+-    ItemList members;
+-    QString name;
+-    QColor color;
+-    QIcon icon;
+-    TaskGroup *group;
+-    TaskGroupTemplate *parentGroup;
+-    ManualGroupingStrategy *groupingStrategy;
+-};
+-
+-
+-TaskGroupTemplate::TaskGroupTemplate(ManualGroupingStrategy *parent, TaskGroup *group)
+-:   AbstractGroupableItem(parent),
+-    d(new Private)
+-{
+-    connect(this, SIGNAL(unprotectGroup(TaskGroup *)), parent, SLOT(unprotectGroup(TaskGroup *)));
+-    connect(this, SIGNAL(protectGroup(TaskGroup *)), parent, SLOT(protectGroup(TaskGroup *)));
+-    if (group) {
+-        d->name = group->name();
+-        d->color = group->color();
+-        d->icon = group->icon();
+-        setGroup(group);
+-        foreach (AbstractGroupableItem *item, group->members()) {
+-            //We don't use TaskGroup::add because this would inform the tasks about the change of the group
+-            //and we use the taskgroup just as a temporary container
+-            if (item->isGroupItem()) {
+-                //kDebug() << "GroupItem Duplication";
+-                TaskGroupTemplate *createdDuplication = new TaskGroupTemplate(parent, dynamic_cast<TaskGroup*>(item));
+-                add(createdDuplication);
+-            } else {
+-                add(item);
+-            }
+-        }
+-    }
+-    //kDebug() << "TemplateGroup Created: Name: " << d->name << "Color: " << d->color;
+-}
+-
+-TaskGroupTemplate::~TaskGroupTemplate()
+-{
+-    emit unprotectGroup(group());
+-    emit destroyed(this);
+-    //clear();
+-    //kDebug() << name();
+-    delete d;
+-}
+-
+-TaskGroup *TaskGroupTemplate::group()
+-{
+-    return d->group;
+-}
+-
+-void TaskGroupTemplate::setGroup(TaskGroup *group)
+-{
+-    if (d->group) {
+-        emit unprotectGroup(group);
+-    }
+-    if (group) {
+-        emit protectGroup(group);
+-    }
+-    d->group = group;
+-}
+-
+-ItemList &TaskGroupTemplate::members() const
+-{
+-    return d->members;
+-}
+-
+-QIcon TaskGroupTemplate::icon() const
+-{
+-    return d->icon;
+-}
+-
+-QColor TaskGroupTemplate::color() const
+-{
+-    return d->color;
+-}
+-
+-QString TaskGroupTemplate::name() const
+-{
+-    return d->name;
+-}
+-
+-/** add item to group */
+-void TaskGroupTemplate::add(AbstractGroupableItem *item)
+-{
+-    if (d->members.contains(item)) {
+-        return;
+-    }
+-
+-    d->members.append(item);
+-
+-    if (item->isGroupItem()) { 
+-        connect(item, SIGNAL(destroyed(AbstractGroupableItem *)), this, SLOT(itemDestroyed(AbstractGroupableItem *)));
+-        (static_cast<TaskGroupTemplate*>(item))->setParentGroup(this);
+-    }
+-}
+-
+-/** remove item from group */
+-void TaskGroupTemplate::remove(AbstractGroupableItem *item)
+-{
+-    disconnect(item, 0, this, 0);
+-    disconnect(this, 0, item, 0);
+-    d->members.removeAll(item);
+-    if (item->isGroupItem()) { 
+-        (static_cast<TaskGroupTemplate*>(item))->setParentGroup(0);
+-    }
+-    if (d->members.isEmpty()) {
+-        closeGroup();
+-    }
+-}
+-
+-/** Removes all tasks and groups from this group */
+-void TaskGroupTemplate::clear()
+-{
+-    foreach(AbstractGroupableItem *item, d->members) {
+-        Q_ASSERT(item);
+-        if (item->isGroupItem()) { 
+-            TaskGroupTemplate* templateGroup = qobject_cast<TaskGroupTemplate*>(item);
+-            Q_ASSERT(templateGroup);
+-            templateGroup->clear();
+-        } else {
+-            remove(item);
+-        }
+-    }
+-}
+-/** Reparents all members and closes this group */
+-void TaskGroupTemplate::closeGroup()
+-{
+-    if (parentGroup()) {
+-        foreach(AbstractGroupableItem *item, d->members) {
+-            Q_ASSERT(item);
+-            remove(item);
+-            parentGroup()->add(item);
+-        }
+-    } else {
+-        foreach(AbstractGroupableItem *item, d->members) {
+-            Q_ASSERT(item);
+-            remove(item);
+-        }
+-    }
+-    deleteLater();
+-}
+-
+-
+-TaskGroupTemplate *TaskGroupTemplate::parentGroup() const
+-{
+-    return d->parentGroup;
+-}
+-
+-void TaskGroupTemplate::setParentGroup(TaskGroupTemplate *group)
+-{
+-    d->parentGroup = group;
+-}
+-
+-void TaskGroupTemplate::addMimeData(QMimeData *mimeData) const
+-{
+-    if (d->group) {
+-        d->group->addMimeData(mimeData);
+-    }
+-}
+-
+-/** only true if item is in this group */
+-bool TaskGroupTemplate::hasDirectMember(AbstractGroupableItem *item) const
+-{
+-    return d->members.contains(item);
+-}
+-
+-/** true if item is in this or any sub group */
+-bool TaskGroupTemplate::hasMember(AbstractGroupableItem *item) const
+-{
+-    //kDebug();
+-    if (members().contains(item)) {
+-        return true;
+-    }
+-    ItemList::const_iterator iterator = members().constBegin();
+-    while (iterator != members().constEnd()) {
+-        if ((*iterator)->isGroupItem()) {
+-            if ((static_cast<TaskGroupTemplate *>(*iterator))->hasMember(item)) { //look into group
+-                return true;
+-            }
+-        }
+-        ++iterator;
+-    }
+-    return false;
+-
+-}
+-
+-/** Returns Direct Member group if the passed item is in a subgroup */
+-AbstractGroupableItem *TaskGroupTemplate::directMember(AbstractGroupableItem *item) const
+-{
+-    if (members().contains(item)) {
+-        return item;
+-    } else {
+-        ItemList::const_iterator iterator = members().constBegin();
+-        while (iterator != members().constEnd()) {
+-            if ((*iterator)->isGroupItem()) {
+-                if ((static_cast<TaskGroupTemplate*>(*iterator))->hasMember(item)) {
+-                    //kDebug() << "item found";
+-                    return (*iterator);
+-                }
+-            } 
+-            ++iterator;
+-        }
+-    }
+-    kDebug() << "item not found";
+-    return 0;
+-}
+-
+-TaskGroupTemplate *TaskGroupTemplate::findParentGroup(AbstractGroupableItem *item) const
+-{
+-    if (members().contains(item)) {
+-        return const_cast<TaskGroupTemplate*>(this);
+-    } else {
+-        ItemList::const_iterator iterator = members().constBegin();
+-        while (iterator != members().constEnd()) {
+-            if ((*iterator)->isGroupItem()) {
+-                TaskGroupTemplate *returnedGroup = (static_cast<TaskGroupTemplate*>(*iterator))->findParentGroup(item);
+-                if (returnedGroup) {
+-                    //kDebug() << "item found";
+-                    return returnedGroup;
+-                }
+-            }
+-            ++iterator;
+-        }
+-    }
+-    kDebug() << "item not found";
+-    return 0;
+-}
+-
+-void TaskGroupTemplate::itemDestroyed(AbstractGroupableItem *item)
+-{
+-    if (!item) {
+-        kDebug() << "Error";
+-        return;
+-    }
+-    //kDebug() << d->group->name(); 
+-    /**
+-    * The following code is needed in case one creates a group on desktop 1 with a task which is on multiple * * desktops. If this task gets closed on another desktop as last task in the group the empty group is still * stored in the template and therefore all attributes (name, color, ..) stay reserved
+-    */
+-    d->members.removeAll(item); // we can't use remove because the item was already deleted
+-    disconnect(item, 0, this, 0);
+-    disconnect(this, 0, item, 0);
+-    if (members().isEmpty()) {
+-        closeGroup();
+-    }
+-}
+-
+-void ManualGroupingStrategy::checkGroup()
+-{
+-    TaskGroup *group = qobject_cast<TaskGroup*>(sender()); 
+-    if (group && group->members().size() <= 1) {
+-        closeGroup(group);
+-    }
++    rootGroup()->add(item);
+ }
+ 
+ }//namespace
+diff -up kdebase-workspace-4.3.4/libs/taskmanager/strategies/manualgroupingstrategy.h.me kdebase-workspace-4.3.4/libs/taskmanager/strategies/manualgroupingstrategy.h
+--- kdebase-workspace-4.3.4/libs/taskmanager/strategies/manualgroupingstrategy.h.me	2012-07-04 17:13:06.827384989 +0200
++++ kdebase-workspace-4.3.4/libs/taskmanager/strategies/manualgroupingstrategy.h	2012-07-04 17:56:27.054389987 +0200
+@@ -26,132 +26,21 @@ CONNECTION WITH THE SOFTWARE OR THE USE 
+ 
+ #include "abstractgroupingstrategy.h"
+ #include "taskgroup.h"
++#include <QObject>
+ 
+ namespace TaskManager
+ {
+ 
+ class ManualGroupingStrategy;
+-/**
+- * TaskGroup, a container for tasks and subgroups
+- */
+-
+-class TaskGroupTemplate : public AbstractGroupableItem
+-{
+-    Q_OBJECT
+-public:
+-    TaskGroupTemplate(ManualGroupingStrategy *parent, TaskGroup *group);
+-    ~TaskGroupTemplate();
+-
+-    TaskGroup *group();
+-    void setGroup(TaskGroup *);
+-
+-    ItemList &members() const;
+-    QIcon icon() const;
+-    QColor color() const;
+-    QString name() const;
+-
+-    bool isGroupItem() const { return true; }
+-
+-    /** only true if item is in this group */
+-    bool hasDirectMember(AbstractGroupableItem *item) const;
+-    /** only true if item is in this or any sub group */
+-    bool hasMember(AbstractGroupableItem *item) const;
+-    /** Returns Direct Member group if the passed item is in a subgroup */
+-    AbstractGroupableItem *directMember(AbstractGroupableItem *) const;
+-
+-    TaskGroupTemplate *findParentGroup(AbstractGroupableItem *item) const;
+-
+-    TaskGroupTemplate *parentGroup() const;
+-    void setParentGroup(TaskGroupTemplate *);
+-
+-    void addMimeData(QMimeData *mimeData) const;
+-
+-Q_SIGNALS:
+-    /** Unprotects group so it can get closed
+-    */
+-    void unprotectGroup(TaskGroup *);
+-    /** used to inform the group that there is still a desktop with this group so it wont
+-    *	be closed when empty
+-    */
+-    void protectGroup(TaskGroup *);
+-
+-    void destroyed(AbstractGroupableItem *);
+-
+-private Q_SLOTS:
+-    void itemDestroyed(AbstractGroupableItem *);
+-
+-public Q_SLOTS:
+-    /** Needed because we subclass AbstractGroupableItem */
+-    void toDesktop(int) {}
+-    bool isOnCurrentDesktop() const { return false; }
+-    bool isOnAllDesktops() const  { return false; }
+-    int desktop() const {return 0; }
+-
+-    void setShaded(bool) {}
+-    void toggleShaded() {}
+-    bool isShaded() const {return false; }
+-
+-    void setMaximized(bool) {}
+-    void toggleMaximized() {}
+-    bool isMaximized() const {return false; }
+-
+-    void setMinimized(bool) {}
+-    void toggleMinimized() {}
+-    bool isMinimized() const { return false; }
+-
+-    void setFullScreen(bool) {}
+-    void toggleFullScreen() {}
+-    bool isFullScreen() const { return false; }
+-
+-    void setKeptBelowOthers(bool) {}
+-    void toggleKeptBelowOthers() {}
+-    bool isKeptBelowOthers() const { return false; }
+-
+-    void setAlwaysOnTop(bool) {}
+-    void toggleAlwaysOnTop() {}
+-    bool isAlwaysOnTop() const { return false; }
+-
+-    bool isActionSupported(NET::Action) const { return false; }
+-
+-    /** close all members of this group */
+-    void close() {}
+-
+-    /** returns true if at least one member is active */
+-    bool isActive() const { return false; }
+-    /** returns true if at least one member is demands attention */
+-    bool demandsAttention() const { return false; }
+-
+-    /** add item to group */
+-    void add(AbstractGroupableItem *);
+-
+-    /** remove item from group */
+-    void remove(AbstractGroupableItem *);
+-
+-    /** Removes all tasks and groups from this group */
+-    void clear();
+-
+-    /** remove this group, passes all members to grouping strategy*/
+-    void closeGroup();
+-
+-private:
+-    class Private;
+-    Private * const d;
+-};
+-
+-
+-
+-
+ class GroupManager;
+ /**
+- * Remembers manually grouped tasks
+- * To do this it keeps an exact copy of the rootGroup and all subgroups
+- * for each desktop/screen 
++ * Allows to manually group tasks
+  */
+ class ManualGroupingStrategy: public AbstractGroupingStrategy
+ {
+     Q_OBJECT
+ public:
+-    ManualGroupingStrategy(GroupManager *groupingStrategy);
++    ManualGroupingStrategy(GroupManager *groupManager);
+     ~ManualGroupingStrategy();
+ 
+     /** looks up if this item has been grouped before and groups it accordingly.
+@@ -170,20 +59,11 @@ public:
+ 
+     EditableGroupProperties editableGroupProperties();
+ 
+-    void desktopChanged(int newDesktop);
+-
+ protected Q_SLOTS:
+-    void closeGroup(TaskGroup*);
+-
+-    /** Checks if the group is still necessary, removes group if empty*/
+-    void checkGroup();
+ 
+ private:
+     bool manualGrouping(TaskItem* taskItem, TaskGroup* groupItem);
+ 
+-    /** Create a duplication of a group with all subgroups TaskItems arent duplicated */
+-    TaskGroupTemplate *createDuplication(TaskGroup *group);
+-
+ private Q_SLOTS:
+ 
+     /** Actions which the strategy offers*/
+@@ -192,19 +72,6 @@ private Q_SLOTS:
+     /** Removes all items from the sender group and adds to the parent Group*/
+     void removeGroup();
+ 
+-
+-    void groupChangedDesktop(int newDesk);
+-    /** Protects group from being closed, because the tasks in the group are just temporarily 
+-    *	not available (not on the desktop,...). Every TaskGroupTemplate calls this so the group is
+-    *	is only closed if it isn't present on any desktop.
+-    */
+-    void protectGroup(TaskGroup *group);
+-    /** Unprotects group so it can get closed
+-    */
+-    void unprotectGroup(TaskGroup *group);
+-    /** This function makes sure that if the rootGroup template already got deleted nobody tries to access it again*/
+-    void resetCurrentTemplate();
+-
+ private:
+     class Private;
+     Private * const d;
+diff -up kdebase-workspace-4.3.4/libs/taskmanager/strategies/manualsortingstrategy.cpp.me kdebase-workspace-4.3.4/libs/taskmanager/strategies/manualsortingstrategy.cpp
+--- kdebase-workspace-4.3.4/libs/taskmanager/strategies/manualsortingstrategy.cpp.me	2012-07-04 17:25:31.885402505 +0200
++++ kdebase-workspace-4.3.4/libs/taskmanager/strategies/manualsortingstrategy.cpp	2012-07-04 17:51:01.996387407 +0200
+@@ -23,135 +23,26 @@ CONNECTION WITH THE SOFTWARE OR THE USE 
+ 
+ #include "manualsortingstrategy.h"
+ 
+-#include "taskitem.h"
+-#include "taskgroup.h"
+-#include "taskmanager.h"
+-
+-#include <QMap>
+-#include <QtAlgorithms>
+-
+-#include <KDebug>
+-
+-
+ namespace TaskManager
+ {
+ 
+-class ManualSortingStrategy::Private
+-{
+-public:
+-    Private()
+-    {
+-    }
+-    GroupManager *groupingStrategy;
+-
+-    itemHashTable *managedItems;
+-    desktopHashTable *desktops;
+-    int oldDesktop;
+-};
+-
+ 
+ ManualSortingStrategy::ManualSortingStrategy(GroupManager *parent)
+-    :AbstractSortingStrategy(parent),
+-    d(new Private)
++        :AbstractSortingStrategy(parent)
+ {
+-    d->groupingStrategy = parent;
+     setType(GroupManager::ManualSorting);
+-
+-    d->desktops = new desktopHashTable();
+-    //TODO add a screenHashTable
+-    d->oldDesktop = TaskManager::TaskManager::self()->currentDesktop();
+-
+-    if (d->groupingStrategy->showOnlyCurrentDesktop()) {
+-        d->desktops->insert(TaskManager::TaskManager::self()->currentDesktop(), new itemHashTable());
+-        d->managedItems = d->desktops->value(TaskManager::TaskManager::self()->currentDesktop());
+-    } else {
+-        d->desktops->insert(0,new itemHashTable());
+-        d->managedItems = d->desktops->value(0);
+-    }
+ }
+ 
+ ManualSortingStrategy::~ManualSortingStrategy()
+ {
+-    if (d->desktops) {
+-        foreach(itemHashTable *table, *d->desktops) {
+-            if (table) {
+-                delete table;
+-            }
+-        }
+-        delete d->desktops;
+-    }
+-    delete d;
+-}
+-
+-void ManualSortingStrategy::storePositions(TaskGroup *group)
+-{
+-    Q_ASSERT(group);
+-    for (int i = 0; i < group->members().size(); i++) {
+-        AbstractGroupableItem *item = group->members().at(i);
+-        Q_ASSERT(item);
+-        if (item->isGroupItem()) {
+-            d->managedItems->insert(item, i);
+-            storePositions(dynamic_cast<TaskGroup*>(item));
+-        } else {
+-            d->managedItems->insert(item, i);
+-        }
+-
+-        //kDebug() << item << i;
+-    }
+-}
+-
+-//Here we should store all infos about the sorting
+-void ManualSortingStrategy::desktopChanged(int newDesktop)
+-{
+-    kDebug() << "Desktop changed" << d->oldDesktop << newDesktop;
+-    //store positions of old desktop
+-    d->managedItems->clear();
+-    storePositions(d->groupingStrategy->rootGroup());
+-    d->desktops->insert(d->oldDesktop, d->managedItems);
+-
+-    //load positions of new desktop
+-    if (d->desktops->contains(newDesktop)) {
+-        d->managedItems = d->desktops->value(newDesktop);
+-    } else {
+-        d->managedItems = new itemHashTable();
+-    }
+-
+-    d->oldDesktop = newDesktop;
+ }
+ 
+-void ManualSortingStrategy::sortItems(ItemList &items)
++bool ManualSortingStrategy::manualSortingRequest(AbstractGroupableItem *item, int newIndex)
+ {
+-    kDebug();
+-
+-    QMap<int, AbstractGroupableItem*> map;
+-    int i = 1000;
+-    foreach (AbstractGroupableItem *item, items) {
+-        if (d->managedItems->contains(item)) {
+-            map.insertMulti(d->managedItems->value(item), item);
+-        } else {//make sure unkwown items are appended
+-            kDebug() << "item not found in managedItems";
+-            map.insertMulti(i, item);
+-            i++;
+-        }
+-    }
+-    items.clear();
+-    items = map.values();
+-}
+-
+-//since we have no way of knowing about a desktop change before it happens we have to track every single change....
+-void ManualSortingStrategy::handleItem(AbstractGroupableItem *item)
+-{
+-    if (d->managedItems->contains(item)) {
+-        if (item->isGroupItem()) {
+-            handleGroup(qobject_cast<TaskGroup*>(item));
+-        }
+-        check(item);
+-    } else if (item->parentGroup()) {
+-        d->managedItems->insert(item, item->parentGroup()->members().indexOf(item));
+-    }
++    moveItem(item, newIndex);
++    return true;
+ }
+ 
+ } //namespace
+-
+ #include "manualsortingstrategy.moc"
+ 
+diff -up kdebase-workspace-4.3.4/libs/taskmanager/strategies/manualsortingstrategy.h.me kdebase-workspace-4.3.4/libs/taskmanager/strategies/manualsortingstrategy.h
+--- kdebase-workspace-4.3.4/libs/taskmanager/strategies/manualsortingstrategy.h.me	2012-07-04 17:24:21.359389050 +0200
++++ kdebase-workspace-4.3.4/libs/taskmanager/strategies/manualsortingstrategy.h	2012-07-04 17:25:27.151408211 +0200
+@@ -43,21 +43,8 @@ public:
+     ManualSortingStrategy(GroupManager *parent);
+     ~ManualSortingStrategy();
+ 
+-    /** DesktopChanges, time to backup any needed data */
+-    void desktopChanged(int newDesktop);
++    bool manualSortingRequest(AbstractGroupableItem *item, int newIndex);
+ 
+-protected Q_SLOTS:
+-     /** Handles a new item*/
+-    virtual void handleItem(AbstractGroupableItem *);
+-
+-private:
+-    /** Sorts list of items*/
+-    void sortItems(ItemList&);
+-
+-    void storePositions(TaskGroup *group);
+-
+-    class Private;
+-    Private * const d;
+ };
+ 
+ 
+diff -up kdebase-workspace-4.3.4/libs/taskmanager/taskgroup.cpp.me kdebase-workspace-4.3.4/libs/taskmanager/taskgroup.cpp
+--- kdebase-workspace-4.3.4/libs/taskmanager/taskgroup.cpp.me	2012-07-04 17:32:17.964723499 +0200
++++ kdebase-workspace-4.3.4/libs/taskmanager/taskgroup.cpp	2012-07-04 17:36:22.110391640 +0200
+@@ -49,8 +49,6 @@ public:
+     {
+     }
+ 
+-    QList<WId> winIds() const;
+-
+     ItemList members;
+     QString groupName;
+     QColor groupColor;
+@@ -93,6 +91,65 @@ TaskGroup::~TaskGroup()
+     delete d;
+ }
+ 
++WindowList TaskGroup::winIds() const
++{
++    kDebug() << name() << d->members.size();
++    if (d->members.isEmpty()) {
++        kDebug() << "empty group: " << name();
++    }
++    WindowList ids;
++    foreach (AbstractGroupableItem *groupable, d->members) {
++        ids+=groupable->winIds();
++    }
++    kDebug() << ids.size();
++    return ids;
++}
++
++//TODO unused
++WindowList TaskGroup::directMemberwinIds() const
++{
++    WindowList ids;
++    foreach (AbstractGroupableItem *groupable, d->members) {
++        if (!groupable->isGroupItem()) {
++            ids+=groupable->winIds();
++        }
++    }
++    return ids;
++}
++
++AbstractGroupableItem *TaskGroup::getMemberByWId(WId id)
++{
++    foreach (AbstractGroupableItem *groupable, d->members) {
++        if (groupable->isGroupItem()) {
++            AbstractGroupableItem *item = static_cast<TaskGroup*>(groupable)->getMemberByWId(id);
++            if (item) {
++                return item;
++            }
++        } else {
++            if (groupable->winIds().isEmpty()) {
++                continue;
++            }
++            if (groupable->winIds().values().first() == id) {
++                return groupable;
++            }
++        }
++    }
++    //kDebug() << "item not found";
++    return 0;
++}
++
++int TaskGroup::totalSize()
++{
++    int size = 0;
++    foreach (AbstractGroupableItem *groupable, d->members) {
++        if (groupable->isGroupItem()) {
++            size += static_cast<TaskGroup*>(groupable)->totalSize();
++        } else {
++            size++;
++        }
++    }
++    return size;
++}
+ 
+ void TaskGroup::add(AbstractGroupableItem *item)
+ {
+@@ -104,6 +161,11 @@ void TaskGroup::add(AbstractGroupableIte
+     }
+ */
+ 
++    if (!item) {
++        kDebug() << "invalid item";
++        return;
++    }
++
+     if (d->members.contains(item)) {
+         //kDebug() << "already in this group";
+         return;
+@@ -189,19 +251,6 @@ void TaskGroup::remove(AbstractGroupable
+     emit itemRemoved(item);
+ }
+ 
+-void TaskGroup::clear()
+-{
+-   // kDebug() << "size " << d->members.size();
+-    foreach(AbstractGroupableItem *item, d->members) {
+-    //    kDebug();
+-        Q_ASSERT(item);
+-        if (item->isGroupItem()) { 
+-            (static_cast<GroupPtr>(item))->clear();
+-        }
+-        remove(item);
+-    }
+-}
+-
+ ItemList TaskGroup::members() const
+ {
+     return d->members;
+@@ -330,27 +379,6 @@ bool TaskGroup::isOnCurrentDesktop() con
+     return true;
+ }
+ 
+-QList<WId> TaskGroup::Private::winIds() const
+-{
+-    QList<WId> ids;
+-
+-    foreach (AbstractGroupableItem *groupable, members) {
+-        if (groupable->isGroupItem()) {
+-            TaskGroup *group = dynamic_cast<TaskGroup*>(groupable);
+-            if (group) {
+-                ids << group->d->winIds();
+-            }
+-        } else {
+-            TaskItem * item = dynamic_cast<TaskItem*>(groupable);
+-            if (item) {
+-                ids << item->task()->info().win();
+-            }
+-        }
+-    }
+-
+-    return ids;
+-}
+-
+ void TaskGroup::addMimeData(QMimeData *mimeData) const
+ {
+     //kDebug() << d->members.count();
+@@ -359,7 +387,7 @@ void TaskGroup::addMimeData(QMimeData *m
+     }
+ 
+     QByteArray data;
+-    QList<WId> ids = d->winIds();
++    WindowList ids = winIds();
+     int count = ids.count();
+     data.resize(sizeof(int) + sizeof(WId) * count);
+     memcpy(data.data(), &count, sizeof(int));
+diff -up kdebase-workspace-4.3.4/libs/taskmanager/taskgroup.h.me kdebase-workspace-4.3.4/libs/taskmanager/taskgroup.h
+--- kdebase-workspace-4.3.4/libs/taskmanager/taskgroup.h.me	2012-07-04 17:31:01.477382899 +0200
++++ kdebase-workspace-4.3.4/libs/taskmanager/taskgroup.h	2012-07-04 17:32:08.395405811 +0200
+@@ -40,6 +40,12 @@ public:
+     ~TaskGroup();
+ 
+     ItemList members() const;
++    WindowList winIds() const;
++    WindowList directMemberwinIds() const;
++
++    AbstractGroupableItem *getMemberByWId(WId id);
++    //including subgroups
++    int totalSize();
+ 
+     QIcon icon() const;
+     void setIcon(const QIcon &icon);
+@@ -117,9 +123,6 @@ public Q_SLOTS:
+     /** remove item from group */
+     void remove(AbstractGroupableItem *);
+ 
+-    /** Removes all tasks and groups from this group */
+-    void clear();
+-
+ Q_SIGNALS:
+     /** inform visualization about wat is added and removed */
+     void itemAdded(AbstractGroupableItem *item);
+diff -up kdebase-workspace-4.3.4/libs/taskmanager/taskitem.cpp.me kdebase-workspace-4.3.4/libs/taskmanager/taskitem.cpp
+--- kdebase-workspace-4.3.4/libs/taskmanager/taskitem.cpp.me	2012-07-04 17:37:12.760384465 +0200
++++ kdebase-workspace-4.3.4/libs/taskmanager/taskitem.cpp	2012-07-04 17:37:49.939411723 +0200
+@@ -120,6 +120,17 @@ StartupPtr TaskItem::startup() const
+     return d->startupTask;
+ }
+ 
++WindowList TaskItem::winIds() const
++{
++    if (!d->task) {
++        kDebug() << "no winId: probably startup task";
++        return WindowList();
++    }
++    WindowList list;
++    list << d->task->window();
++    return list;
++}
++
+ QIcon TaskItem::icon() const
+ {
+     if (!d->task) {
+diff -up kdebase-workspace-4.3.4/libs/taskmanager/taskitem.h.me kdebase-workspace-4.3.4/libs/taskmanager/taskitem.h
+--- kdebase-workspace-4.3.4/libs/taskmanager/taskitem.h.me	2012-07-04 17:36:34.274503436 +0200
++++ kdebase-workspace-4.3.4/libs/taskmanager/taskitem.h	2012-07-04 17:37:04.014404211 +0200
+@@ -47,6 +47,8 @@ public:
+     /** Returns the shared pointer to the  Task */
+     TaskPtr task() const;
+ 
++    WindowList winIds() const;
++
+     StartupPtr startup() const;
+     bool isGroupItem() const { return false; }
+ 
+diff -up kdebase-workspace-4.3.4/plasma/applets/tasks/tasks.cpp.me kdebase-workspace-4.3.4/plasma/applets/tasks/tasks.cpp
+--- kdebase-workspace-4.3.4/plasma/applets/tasks/tasks.cpp.me	2012-07-04 17:39:01.524388818 +0200
++++ kdebase-workspace-4.3.4/plasma/applets/tasks/tasks.cpp	2012-07-04 17:41:29.005388182 +0200
+@@ -93,8 +93,8 @@ void Tasks::init()
+     // personal experience tinking with it) and convoluted. It should be possible to
+     // set up the GroupManager firt, and *then* create the root TaskGroupItem.
+ 
+-   // connect(m_groupManager, SIGNAL(reload()), this, SLOT(reload()));
+-    connect(this, SIGNAL(settingsChanged()), m_groupManager, SLOT(reconnect()));
++    connect(m_groupManager, SIGNAL(reload()), this, SLOT(reload()));
++    //connect(this, SIGNAL(settingsChanged()), m_groupManager, SLOT(reconnect()));
+ 
+     m_rootGroupItem = new TaskGroupItem(this, this);
+     m_rootGroupItem->expand();
+@@ -140,7 +140,12 @@ void Tasks::init()
+ 
+ void Tasks::reload()
+ {
+-    m_rootGroupItem->reload();
++    TaskGroup *newGroup = m_groupManager->rootGroup();
++    if (newGroup != m_rootGroupItem->abstractItem()) {
++        m_rootGroupItem->setGroup(newGroup);
++    } else {
++        m_rootGroupItem->reload();
++    }
+ }
+ 
+ TaskManager::GroupManager &Tasks::groupManager() const
+diff -up kdebase-workspace-4.3.4/plasma/applets/tasks/tasks.h.me kdebase-workspace-4.3.4/plasma/applets/tasks/tasks.h
+--- kdebase-workspace-4.3.4/plasma/applets/tasks/tasks.h.me	2012-07-04 17:38:19.397384503 +0200
++++ kdebase-workspace-4.3.4/plasma/applets/tasks/tasks.h	2012-07-04 17:38:46.383413126 +0200
+@@ -128,7 +128,6 @@ private slots:
+         * Somthing has changed in the tree of the GroupingStrategy
+         */
+         void reload();
+-        //void groupRemoved(TaskGroup *item);
+         void changeSizeHint(Qt::SizeHint which);
+         void dialogGroupingChanged(int index);
+ 

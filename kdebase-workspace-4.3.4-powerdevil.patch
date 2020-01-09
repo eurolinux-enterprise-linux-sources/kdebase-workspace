@@ -1,0 +1,12 @@
+diff -up kdebase-workspace-4.3.4/powerdevil/daemon/PowerDevilDaemon.cpp.me kdebase-workspace-4.3.4/powerdevil/daemon/PowerDevilDaemon.cpp
+--- kdebase-workspace-4.3.4/powerdevil/daemon/PowerDevilDaemon.cpp.me	2015-01-19 14:47:07.625100274 +0100
++++ kdebase-workspace-4.3.4/powerdevil/daemon/PowerDevilDaemon.cpp	2015-01-19 14:47:24.640943159 +0100
+@@ -1265,7 +1265,7 @@ KConfigGroup * PowerDevilDaemon::getCurr
+         d->currentConfig = new KConfigGroup(d->profilesConfig, d->currentProfile);
+     }
+ 
+-    if (!d->currentConfig->isValid() || !d->currentConfig->entryMap().size()) {
++    if (!d->currentConfig->isValid()) {
+         emitCriticalNotification("powerdevilerror", i18n("The profile \"%1\" has been selected, "
+                                  "but it does not exist.\nPlease check your PowerDevil configuration.",
+                                  d->currentProfile));
