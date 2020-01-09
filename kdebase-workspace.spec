@@ -3,7 +3,7 @@
 Summary: K Desktop Environment - Workspace
 Name: kdebase-workspace
 Version: 4.3.4
-Release: 35%{?dist}
+Release: 37%{?dist}
 URL: http://www.kde.org/
 Source0: ftp://ftp.kde.org/pub/kde/stable/%{version}/src/kdebase-workspace-%{version}.tar.bz2
 License: GPLv2
@@ -228,9 +228,10 @@ BuildArch: noarch
 
 %package -n kdm
 Summary: The KDE login manager
-group: User Interface/X
+Group: User Interface/X
 Provides: kdebase-kdm = %{version}-%{release}
 Provides: service(graphical-login) = kdm
+Requires: %{name}-libs%{?_isa} = %{version}-%{release}
 Requires: kdelibs4%{?_isa} >= %{version}
 Requires: kde-settings-kdm
 
@@ -606,6 +607,15 @@ fi
 
 
 %changelog
+* Wed Nov 09 2016 Jan Grulich <jgrulich@redhat.com> - 4.3.4-37
+- Add explicit dependency for KDM subpackage to require -libs subpackage
+  at the same version
+  Resolves: bz#1304735
+
+* Tue Nov 08 2016 Jan Grulich <jgrulich@redhat.com> - 4.3.4-36
+- KDM: properly draw regular background when themed greeter is not used
+  Resolves: bz#1289347
+
 * Wed Feb 10 2016 Jan Grulich <jgrulich@redhat.com> - 4.3.4.35
 - Ksysguard - fix logging into file
   Resolves: bz#1192941
